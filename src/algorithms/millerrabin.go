@@ -6,17 +6,17 @@
 package algorithms
 
 import (
-	"fmt"
+	// "fmt"
 	"math/big"
 	"math/rand"
 	"time"
 )
 
 // ===== Min & max prime numbers for this algo =====
-const (
-	MAX_PRIME_MRPT = 1000000000000
-	MIN_PRIME_MRPT = 100000000
-) 
+// const (
+// 	MAX_PRIME_MRPT = 1000000000000
+// 	MIN_PRIME_MRPT = 100000000
+// ) 
 
 // ===== Main function to be called externally =====
 func FindPrimesWithMillerRabin(start, end int, rounds int) ([]int, error) {
@@ -115,14 +115,14 @@ func randomBigInt(min, max int) int {
 	return rand.Intn(max-min+1) + min
 }
 
-func validateRangeMRPT(start, end int) error {
-	if start < MIN_PRIME_MRPT {
-		return fmt.Errorf("start value (%d) is less than minimum prime number for MRPT (%d)", start, MIN_PRIME_MRPT)
-	} else if end > MAX_PRIME_MRPT {
-		return fmt.Errorf("end value (%d) is greater than max. prime number for MRPT (%d)", end, MAX_PRIME_MRPT)
-	} else if start > end {
-		return fmt.Errorf("start (%d) must be less than or equal to end (%d)", start, end)
-	}
+// func validateRangeMRPT(start, end int) error {
+// 	if start < MIN_PRIME_MRPT {
+// 		return fmt.Errorf("start value (%d) is less than minimum prime number for MRPT (%d)", start, MIN_PRIME_MRPT)
+// 	} else if end > MAX_PRIME_MRPT {
+// 		return fmt.Errorf("end value (%d) is greater than max. prime number for MRPT (%d)", end, MAX_PRIME_MRPT)
+// 	} else if start > end {
+// 		return fmt.Errorf("start (%d) must be less than or equal to end (%d)", start, end)
+// 	}
 
-	return nil
-}
+// 	return nil
+// }

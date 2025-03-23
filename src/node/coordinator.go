@@ -23,7 +23,8 @@ type WorkChunk struct {
     ID        string
     Start     int
     End       int
-    Algorithm AlgorithmType
+    Rounds    int
+	Algorithm AlgorithmType
 }
 
 type ChunkResult struct {
@@ -40,29 +41,29 @@ type WorkerInfo struct {
 }
 
 type Coordinator struct {
-	workers       map[string]*WorkerInfo
-	chunks        map[string]*WorkChunk
-	results       map[string]*ChunkResult
-	pendingChunks []string
-	mutex         sync.Mutex
+	Workers       map[string]*WorkerInfo
+	Chunks        map[string]*WorkChunk
+	Results       map[string]*ChunkResult
+	PendingChunks []string
+	Mutex         sync.Mutex
 }
 
 // "Constructor"; keep track of workers, chunks, and results in hashmaps
 func NewCoordinator() *Coordinator {
 	return &Coordinator{
-		workers:       make(map[string]*WorkerInfo),
-		chunks:        make(map[string]*WorkChunk),
-		results:       make(map[string]*ChunkResult),
-		pendingChunks: []string{},
+		Workers:       make(map[string]*WorkerInfo),
+		Chunks:        make(map[string]*WorkChunk),
+		Results:       make(map[string]*ChunkResult),
+		PendingChunks: []string{},
 	}
 }
 
 // RegisterWorker adds a new worker to the pool
 func (c *Coordinator) RegisterWorker(workerID string) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
+	c.Mutex.Lock()
+	defer c.Mutex.Unlock()
 
-	c.workers[workerID] = &WorkerInfo{
+	c.Workers[workerID] = &WorkerInfo{
 		ID:            workerID,
 		LastHeartbeat: time.Now(),
 		ActiveChunks:  []string{},
@@ -73,9 +74,9 @@ func (c *Coordinator) RegisterWorker(workerID string) {
 }
 
 // Divides a range into chunks and prepares them for processing
-func (c *Coordinator) CreateJob(start, end, chunkSize int) (string, error) {
-    c.mutex.Lock()
-    defer c.mutex.Unlock()
+func (c *Coordinator) CreateJob(start, end, rounds, chunkSize int) (string, error) {
+    c.Mutex.Lock()
+    defer c.Mutex.Unlock()
     
     jobID := fmt.Sprintf("job-%d", time.Now().UnixNano())
     
@@ -95,11 +96,12 @@ func (c *Coordinator) CreateJob(start, end, chunkSize int) (string, error) {
             ID:        chunkID,
             Start:     chunkStart,
             End:       chunkEnd,
+			Rounds:    rounds,
             Algorithm: algorithm,
         }
         
-        c.chunks[chunkID] = chunk
-        c.pendingChunks = append(c.pendingChunks, chunkID)
+        c.Chunks[chunkID] = chunk
+        c.PendingChunks = append(c.PendingChunks, chunkID)
         
         fmt.Printf("Created chunk: %s (%d to %d) using %s\n", 
             chunkID, chunkStart, chunkEnd, algorithm)
@@ -110,38 +112,38 @@ func (c *Coordinator) CreateJob(start, end, chunkSize int) (string, error) {
 
 // GetNextChunk assigns the next available chunk to a worker
 func (c *Coordinator) GetNextChunk(workerID string) (*WorkChunk, error) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
+	c.Mutex.Lock()
+	defer c.Mutex.Unlock()
 	
-	worker, exists := c.workers[workerID]
+	worker, exists := c.Workers[workerID]
 	if !exists {
 		return nil, fmt.Errorf("unknown worker (%s)", workerID)
 	}
 	
 	worker.LastHeartbeat = time.Now()
 	
-	if len(c.pendingChunks) == 0 {
+	if len(c.PendingChunks) == 0 {
 		return nil, nil
 	}
 	
-	chunkID := c.pendingChunks[0]
-	c.pendingChunks = c.pendingChunks[1:]
+	chunkID := c.PendingChunks[0]
+	c.PendingChunks = c.PendingChunks[1:]
 	
 	worker.ActiveChunks = append(worker.ActiveChunks, chunkID)
 	
 	fmt.Printf("Assigned chunk %s to worker %s\n", chunkID, workerID)
 	
-	return c.chunks[chunkID], nil
+	return c.Chunks[chunkID], nil
 }
 
 // SubmitResult stores the result of a processed chunk
 func (c *Coordinator) SubmitResult(result ChunkResult) error {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
+	c.Mutex.Lock()
+	defer c.Mutex.Unlock()
 	
-	c.results[result.ChunkID] = &result
+	c.Results[result.ChunkID] = &result
 	
-	for workerID, worker := range c.workers {
+	for workerID, worker := range c.Workers {
 		for i, chunkID := range worker.ActiveChunks {
 			if chunkID == result.ChunkID {
 				worker.ActiveChunks = append(worker.ActiveChunks[:i], worker.ActiveChunks[i+1:]...)
@@ -159,11 +161,11 @@ func (c *Coordinator) SubmitResult(result ChunkResult) error {
 
 // GetResults combines all results for completed chunks
 func (c *Coordinator) GetResults() []int {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
+	c.Mutex.Lock()
+	defer c.Mutex.Unlock()
 
 	var allPrimes []int
-	for _, result := range c.results {
+	for _, result := range c.Results {
 		allPrimes = append(allPrimes, result.Primes...)
 	}
 	
