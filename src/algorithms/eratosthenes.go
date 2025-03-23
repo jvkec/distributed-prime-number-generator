@@ -12,15 +12,17 @@ import (
 )
 
 // ===== Min & max prime numbers for this algo =====
-const MAX_PRIME_SOE = 100000000
-const MIN_PRIME_SOE = 2
+const (
+	MAX_PRIME_SOE = 100000000
+	MIN_PRIME_SOE = 2
+)
 
 // ===== Main function to be called externally =====
 func FindPrimesWithEratosthenes(start, end int) ([]int, error) {
 
-	if err := validateRangeSOE(start, end); err != nil {
-		return nil, err
-	}
+	// if err := validateRangeSOE(start, end); err != nil {
+	// 	return nil, err
+	// }
 
 	isPrime := sieveOfEratosthenes(end)
 	
@@ -55,11 +57,11 @@ func sieveOfEratosthenes(end int) []bool {
 
 func validateRangeSOE(start, end int) error {
 	if start < MIN_PRIME_SOE {
-		return fmt.Errorf("Start value (%d) is less than minimum prime number for SOE (%d)", start, MIN_PRIME_SOE)
+		return fmt.Errorf("start value (%d) is less than minimum prime number for SOE (%d)", start, MIN_PRIME_SOE)
 	} else if end > MAX_PRIME_SOE {
-		return fmt.Errorf("End value (%d) is greater than maximum prime number for SOE (%d)", start, MAX_PRIME_SOE)
+		return fmt.Errorf("end value (%d) is greater than maximum prime number for SOE (%d)", start, MAX_PRIME_SOE)
 	} else if start > end {
-		return fmt.Errorf("Start (%d) must be less than or equal to end (%d)", start, end)
+		return fmt.Errorf("start (%d) must be less than or equal to end (%d)", start, end)
 	}
 
 	return nil
