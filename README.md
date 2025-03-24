@@ -1,1 +1,1 @@
-# distributed-prime-number-generatorer
+# distributed-prime-number-generator
