@@ -48,7 +48,6 @@ type Coordinator struct {
 	Mutex         sync.Mutex
 }
 
-// "Constructor"; keep track of workers, chunks, and results in hashmaps
 func NewCoordinator() *Coordinator {
 	return &Coordinator{
 		Workers:       make(map[string]*WorkerInfo),
