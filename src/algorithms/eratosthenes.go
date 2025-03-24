@@ -28,7 +28,7 @@ func sieveOfEratosthenes(end int) []bool {
 		isPrime[i] = true
 	}
 
-	for p := 2; p*p < end; p++ {
+	for p := 2; p*p <= end; p++ {
 		if isPrime[p] {
 			for i := p * p; i <= end; i += p {
 				isPrime[i] = false

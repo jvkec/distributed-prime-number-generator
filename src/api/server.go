@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -113,7 +112,11 @@ func (s *Server) handleJobById(w http.ResponseWriter, r *http.Request) {
     // TODO in future: filter results by job ID
     fmt.Printf("Getting results for job: %s\n", jobID)
     
-    results := s.Coordinator.GetResults()
+    results, err := s.Coordinator.GetJobResults(jobID)
+    if err != nil {
+        sendErrorResponse(w, fmt.Sprintf("Error: %v", err), http.StatusNotFound)
+        return
+    }
     
     sendJSONResponse(w, results, http.StatusOK)
 }
@@ -134,14 +137,28 @@ func (s *Server) handleWorkers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleWorkerById(w http.ResponseWriter, r *http.Request) {
+
 	parts := strings.Split(r.URL.Path, "/")
+
 	if len(parts) < 3 {
 		sendErrorResponse(w, "Invalid worker ID", http.StatusBadRequest)
 		return
 	}
 	
-	workerID := parts[len(parts)-1]
-	
+	var workerID string
+    for i, part := range parts {
+        if part == "workers" && i+1 < len(parts) {
+            workerID = parts[i+1]
+            break
+        }
+    }
+
+	_, exists := s.Coordinator.Workers[workerID]
+    if !exists {
+        sendErrorResponse(w, fmt.Sprintf("Worker not found: %s", workerID), http.StatusBadRequest)
+        return
+    }
+
 	if strings.HasSuffix(r.URL.Path, "/chunks") {
 		s.handleGetNextChunk(w, r, workerID)
 	} else if strings.Contains(r.URL.Path, "/results") {
@@ -152,6 +169,7 @@ func (s *Server) handleWorkerById(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetNextChunk(w http.ResponseWriter, r *http.Request, workerID string) {
+
 	if r.Method != http.MethodGet {
 		sendErrorResponse(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return

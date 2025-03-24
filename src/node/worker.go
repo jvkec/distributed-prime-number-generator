@@ -33,22 +33,22 @@ func NewWorker(serverURL string) *Worker {
 func (w *Worker) Register() error {
 	resp, err := w.Client.Post(w.ServerURL+"/api/workers", "application/json", nil)
 	if err != nil {
-		return fmt.Errorf("registration failed: %v", err)
+		return fmt.Errorf("registration failed - %v", err)
 	}
 	defer resp.Body.Close()
 	
 	if resp.StatusCode != http.StatusCreated {
-		return fmt.Errorf("registration failed with status: %d", resp.StatusCode)
+		return fmt.Errorf("registration failed with status - %d", resp.StatusCode)
 	}
 	
 	var result map[string]string
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("failed to read response: %v", err)
+		return fmt.Errorf("failed to read response - %v", err)
 	}
 	
 	if err := json.Unmarshal(body, &result); err != nil {
-		return fmt.Errorf("failed to parse response: %v", err)
+		return fmt.Errorf("failed to parse response - %v", err)
 	}
 	
 	w.ID = result["workerId"]
@@ -59,9 +59,10 @@ func (w *Worker) Register() error {
 // GetNextChunk requests the next available chunk from the server
 func (w *Worker) GetNextChunk() (*WorkChunk, error) {
 	url := fmt.Sprintf("%s/api/workers/%s/chunks", w.ServerURL, w.ID)
+
 	resp, err := w.Client.Get(url)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get chunk: %v", err)
+		return nil, fmt.Errorf("failed to get chunk - %v", err)
 	}
 	defer resp.Body.Close()
 	
@@ -70,17 +71,17 @@ func (w *Worker) GetNextChunk() (*WorkChunk, error) {
 	}
 	
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("get chunk failed with status: %d", resp.StatusCode)
+		return nil, fmt.Errorf("get chunk failed with status - %d", resp.StatusCode)
 	}
 	
 	var chunk WorkChunk
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %v", err)
+		return nil, fmt.Errorf("failed to read response - %v", err)
 	}
 	
 	if err := json.Unmarshal(body, &chunk); err != nil {
-		return nil, fmt.Errorf("failed to parse chunk: %v", err)
+		return nil, fmt.Errorf("failed to parse chunk - %v", err)
 	}
 	
 	return &chunk, nil
@@ -92,18 +93,18 @@ func (w *Worker) SubmitResult(result ChunkResult) error {
 	
 	jsonData, err := json.Marshal(result)
 	if err != nil {
-		return fmt.Errorf("failed to marshal result: %v", err)
+		return fmt.Errorf("failed to marshal result - %v", err)
 	}
 	
 	// Post the result
 	resp, err := w.Client.Post(url, "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
-		return fmt.Errorf("failed to submit result: %v", err)
+		return fmt.Errorf("failed to submit result - %v", err)
 	}
 	defer resp.Body.Close()
 	
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("submit result failed with status: %d", resp.StatusCode)
+		return fmt.Errorf("submit result failed with status - %d", resp.StatusCode)
 	}
 	
 	return nil
@@ -125,7 +126,7 @@ func (w *Worker) ProcessChunk(chunk *WorkChunk) (*ChunkResult, error) {
 	}
 	
 	if err != nil {
-		return nil, fmt.Errorf("error processing chunk: %v", err)
+		return nil, fmt.Errorf("error processing chunk - %v", err)
 	}
 	
 	runtime := time.Since(startTime)
@@ -142,37 +143,40 @@ func (w *Worker) ProcessChunk(chunk *WorkChunk) (*ChunkResult, error) {
 	return result, nil
 }
 
-// Run starts the worker's processing loop
+// Run starts the worker's processing loop and keeps it running
 func (w *Worker) Run() error {
-	fmt.Printf("Worker starting, connecting to %s\n", w.ServerURL)
-	
-	if err := w.Register(); err != nil {
-		return err
-	}
-	
-	for {
-		chunk, err := w.GetNextChunk()
-		if err != nil {
-			return fmt.Errorf("error getting chunk: %v", err)
-		}
-		
-		// No more chunks available
-		if chunk == nil {
-			fmt.Printf("Worker %s: no more chunks available\n", w.ID)
-			break
-		}
-		
-		result, err := w.ProcessChunk(chunk)
-		if err != nil {
-			return fmt.Errorf("error processing chunk: %v", err)
-		}
-		
-		// Submit the result
-		if err := w.SubmitResult(*result); err != nil {
-			return fmt.Errorf("error submitting result: %v", err)
-		}
-	}
-	
-	fmt.Printf("Worker %s finished all assigned work\n", w.ID)
-	return nil
+    fmt.Printf("Worker starting, connecting to %s\n", w.ServerURL)
+    
+    if err := w.Register(); err != nil {
+        return err
+    }
+    
+    for {
+        chunk, err := w.GetNextChunk()
+        if err != nil {
+            fmt.Printf("Error getting chunk: %v - will retry in 5 seconds\n", err)
+            time.Sleep(5 * time.Second)
+            continue
+        }
+        
+        // No chunks available - wait and try again
+        if chunk == nil {
+            // fmt.Printf("Worker %s: no work available, waiting for 5 seconds...\n", w.ID)
+            time.Sleep(5 * time.Second)
+            continue
+        }
+        
+        result, err := w.ProcessChunk(chunk)
+        if err != nil {
+            fmt.Printf("Error processing chunk: %v - will retry in 5 seconds\n", err)
+            time.Sleep(5 * time.Second)
+            continue
+        }
+        
+        if err := w.SubmitResult(*result); err != nil {
+            fmt.Printf("Error submitting result: %v - will retry in 5 seconds\n", err)
+            time.Sleep(5 * time.Second)
+            continue
+        }
+    }
 }

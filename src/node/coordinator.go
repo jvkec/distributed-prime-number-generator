@@ -23,8 +23,8 @@ type WorkChunk struct {
     ID        string
     Start     int
     End       int
-    Rounds    int
 	Algorithm AlgorithmType
+    Rounds    int
 }
 
 type ChunkResult struct {
@@ -41,20 +41,22 @@ type WorkerInfo struct {
 }
 
 type Coordinator struct {
-	Workers       map[string]*WorkerInfo
-	Chunks        map[string]*WorkChunk
-	Results       map[string]*ChunkResult
-	PendingChunks []string
-	Mutex         sync.Mutex
+    Workers       map[string]*WorkerInfo
+    Chunks        map[string]*WorkChunk
+    Results       map[string]*ChunkResult
+    JobChunks     map[string][]string
+    PendingChunks []string
+    Mutex         sync.Mutex
 }
 
 func NewCoordinator() *Coordinator {
-	return &Coordinator{
-		Workers:       make(map[string]*WorkerInfo),
-		Chunks:        make(map[string]*WorkChunk),
-		Results:       make(map[string]*ChunkResult),
-		PendingChunks: []string{},
-	}
+    return &Coordinator{
+        Workers:       make(map[string]*WorkerInfo),
+        Chunks:        make(map[string]*WorkChunk),
+        Results:       make(map[string]*ChunkResult),
+        JobChunks:     make(map[string][]string),
+        PendingChunks: []string{},
+    }
 }
 
 // RegisterWorker adds a new worker to the pool
@@ -78,7 +80,8 @@ func (c *Coordinator) CreateJob(start, end, rounds, chunkSize int) (string, erro
     defer c.Mutex.Unlock()
     
     jobID := fmt.Sprintf("job-%d", time.Now().UnixNano())
-    
+    c.JobChunks[jobID] = []string{}
+
     for chunkStart := start; chunkStart <= end; chunkStart += chunkSize {
         chunkEnd := chunkStart + chunkSize - 1
         if chunkEnd > end {
@@ -101,12 +104,35 @@ func (c *Coordinator) CreateJob(start, end, rounds, chunkSize int) (string, erro
         
         c.Chunks[chunkID] = chunk
         c.PendingChunks = append(c.PendingChunks, chunkID)
+		c.JobChunks[jobID] = append(c.JobChunks[jobID], chunkID)
         
         fmt.Printf("Created chunk: %s (%d to %d) using %s\n", 
             chunkID, chunkStart, chunkEnd, algorithm)
     }
     
     return jobID, nil
+}
+
+// GetJobResults returns only the results for a specific job
+func (c *Coordinator) GetJobResults(jobID string) ([]int, error) {
+    c.Mutex.Lock()
+    defer c.Mutex.Unlock()
+    
+    // Check if job exists
+    chunks, exists := c.JobChunks[jobID]
+    if !exists {
+        return nil, fmt.Errorf("job not found: %s", jobID)
+    }
+    
+    // Combine results only from this job's chunks
+    var jobPrimes []int
+    for _, chunkID := range chunks {
+        if result, ok := c.Results[chunkID]; ok {
+            jobPrimes = append(jobPrimes, result.Primes...)
+        }
+    }
+    
+    return jobPrimes, nil
 }
 
 // GetNextChunk assigns the next available chunk to a worker
