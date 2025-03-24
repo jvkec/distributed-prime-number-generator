@@ -6,23 +6,107 @@
 package node
 
 import (
+	"bytes"
 	"distributed-prime-number-generator/src/algorithms"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"time"
 )
 
-// Worker represents a worker node in the distributed system
 type Worker struct {
 	ID            string
-	CoordinatorID string
+	ServerURL     string
+	Client        *http.Client
 }
 
-// NewWorker creates a new worker instance
-func NewWorker(id string, coordinatorID string) *Worker {
+func NewWorker(serverURL string) *Worker {
 	return &Worker{
-		ID:            id,
-		CoordinatorID: coordinatorID,
+		ID:        "",  // Will be assigned by the server upon registration
+		ServerURL: serverURL,
+		Client:    &http.Client{Timeout: 10 * time.Second},
 	}
+}
+
+// Register registers this worker with the server
+func (w *Worker) Register() error {
+	resp, err := w.Client.Post(w.ServerURL+"/api/workers", "application/json", nil)
+	if err != nil {
+		return fmt.Errorf("registration failed: %v", err)
+	}
+	defer resp.Body.Close()
+	
+	if resp.StatusCode != http.StatusCreated {
+		return fmt.Errorf("registration failed with status: %d", resp.StatusCode)
+	}
+	
+	var result map[string]string
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response: %v", err)
+	}
+	
+	if err := json.Unmarshal(body, &result); err != nil {
+		return fmt.Errorf("failed to parse response: %v", err)
+	}
+	
+	w.ID = result["workerId"]
+	fmt.Printf("Worker registered with ID: %s\n", w.ID)
+	return nil
+}
+
+// GetNextChunk requests the next available chunk from the server
+func (w *Worker) GetNextChunk() (*WorkChunk, error) {
+	url := fmt.Sprintf("%s/api/workers/%s/chunks", w.ServerURL, w.ID)
+	resp, err := w.Client.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get chunk: %v", err)
+	}
+	defer resp.Body.Close()
+	
+	if resp.StatusCode == http.StatusNoContent {
+		return nil, nil
+	}
+	
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("get chunk failed with status: %d", resp.StatusCode)
+	}
+	
+	var chunk WorkChunk
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %v", err)
+	}
+	
+	if err := json.Unmarshal(body, &chunk); err != nil {
+		return nil, fmt.Errorf("failed to parse chunk: %v", err)
+	}
+	
+	return &chunk, nil
+}
+
+// SubmitResult sends the calculation result back to the server
+func (w *Worker) SubmitResult(result ChunkResult) error {
+	url := fmt.Sprintf("%s/api/workers/%s/results", w.ServerURL, w.ID)
+	
+	jsonData, err := json.Marshal(result)
+	if err != nil {
+		return fmt.Errorf("failed to marshal result: %v", err)
+	}
+	
+	// Post the result
+	resp, err := w.Client.Post(url, "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to submit result: %v", err)
+	}
+	defer resp.Body.Close()
+	
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("submit result failed with status: %d", resp.StatusCode)
+	}
+	
+	return nil
 }
 
 // ProcessChunk handles the calculation of primes in a given chunk
@@ -59,17 +143,20 @@ func (w *Worker) ProcessChunk(chunk *WorkChunk) (*ChunkResult, error) {
 }
 
 // Run starts the worker's processing loop
-func (w *Worker) Run(coordinator *Coordinator) error {
-	fmt.Printf("Worker %s starting\n", w.ID)
+func (w *Worker) Run() error {
+	fmt.Printf("Worker starting, connecting to %s\n", w.ServerURL)
 	
-	coordinator.RegisterWorker(w.ID)
-
+	if err := w.Register(); err != nil {
+		return err
+	}
+	
 	for {
-		chunk, err := coordinator.GetNextChunk(w.ID)
+		chunk, err := w.GetNextChunk()
 		if err != nil {
 			return fmt.Errorf("error getting chunk: %v", err)
 		}
 		
+		// No more chunks available
 		if chunk == nil {
 			fmt.Printf("Worker %s: no more chunks available\n", w.ID)
 			break
@@ -80,8 +167,8 @@ func (w *Worker) Run(coordinator *Coordinator) error {
 			return fmt.Errorf("error processing chunk: %v", err)
 		}
 		
-		err = coordinator.SubmitResult(*result)
-		if err != nil {
+		// Submit the result
+		if err := w.SubmitResult(*result); err != nil {
 			return fmt.Errorf("error submitting result: %v", err)
 		}
 	}

@@ -143,44 +143,54 @@ func (s *Server) handleWorkerById(w http.ResponseWriter, r *http.Request) {
 	workerID := parts[len(parts)-1]
 	
 	if strings.HasSuffix(r.URL.Path, "/chunks") {
-		// GET: Get next chunk
-		if r.Method == http.MethodGet {
-			chunk, err := s.Coordinator.GetNextChunk(workerID)
-			if err != nil {
-				sendErrorResponse(w, fmt.Sprintf("Error: %v", err), http.StatusBadRequest)
-				return
-			}
-			
-			if chunk == nil {
-				w.WriteHeader(http.StatusNoContent)
-				return
-			}
-			
-			sendJSONResponse(w, chunk, http.StatusOK)
-			return
-		}
+		s.handleGetNextChunk(w, r, workerID)
 	} else if strings.Contains(r.URL.Path, "/results") {
-		// POST: Submit results
-		if r.Method == http.MethodPost {
-			var result node.ChunkResult
-			decoder := json.NewDecoder(r.Body)
-			if err := decoder.Decode(&result); err != nil {
-				sendErrorResponse(w, "Invalid result format", http.StatusBadRequest)
-				return
-			}
-			
-			err := s.Coordinator.SubmitResult(result)
-			if err != nil {
-				sendErrorResponse(w, fmt.Sprintf("Error: %v", err), http.StatusInternalServerError)
-				return
-			}
-			
-			w.WriteHeader(http.StatusOK)
-			return
-		}
+		s.handleSubmitResults(w, r, workerID)
+	} else {
+		sendErrorResponse(w, "Method not allowed or invalid endpoint", http.StatusMethodNotAllowed)
+	}
+}
+
+func (s *Server) handleGetNextChunk(w http.ResponseWriter, r *http.Request, workerID string) {
+	if r.Method != http.MethodGet {
+		sendErrorResponse(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
 	}
 	
-	sendErrorResponse(w, "Method not allowed or invalid endpoint", http.StatusMethodNotAllowed)
+	chunk, err := s.Coordinator.GetNextChunk(workerID)
+	if err != nil {
+		sendErrorResponse(w, fmt.Sprintf("Error: %v", err), http.StatusBadRequest)
+		return
+	}
+	
+	if chunk == nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	
+	sendJSONResponse(w, chunk, http.StatusOK)
+}
+
+func (s *Server) handleSubmitResults(w http.ResponseWriter, r *http.Request, workerID string) {
+	if r.Method != http.MethodPost {
+		sendErrorResponse(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	
+	var result node.ChunkResult
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&result); err != nil {
+		sendErrorResponse(w, "Invalid result format", http.StatusBadRequest)
+		return
+	}
+	
+	err := s.Coordinator.SubmitResult(result)
+	if err != nil {
+		sendErrorResponse(w, fmt.Sprintf("Error: %v", err), http.StatusInternalServerError)
+		return
+	}
+	
+	w.WriteHeader(http.StatusOK)
 }
 
 // Helper to send JSON responses
