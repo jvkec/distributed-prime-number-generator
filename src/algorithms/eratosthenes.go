@@ -1,9 +1,7 @@
-/*
-	This file implements the Sieve of Eratosthenes algorithm for finding prime numbers.
-	The implementation is optimized for distributed computing, allowing work to be
-	divided into manageable chunks that can be processed independently by worker nodes.
-	This implementation works efficiently for ranges up to 10^8.
-*/
+// This file implements the Sieve of Eratosthenes algorithm for finding prime numbers.
+// The implementation is optimized for distributed computing, allowing work to be
+// divided into manageable chunks that can be processed independently by worker nodes.
+// This implementation works efficiently for ranges up to 10^8.
 
 package algorithms
 
