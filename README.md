@@ -2,6 +2,10 @@
 
 A scalable system that distributes prime number calculations across multiple worker nodes, using different algorithms optimized for various number ranges.
 
+## Why I built this
+
+One of my first projects in Go's and I wanted to do something related to my interests in distributed systems. I thought Go's concurrency was a good use case for generating a heck ton of prime numbers!
+
 ## Overview
 
 This distributed system allows you to find prime numbers within specified ranges by distributing the workload across multiple worker nodes. It automatically selects the most appropriate algorithm based on the range:
